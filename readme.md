@@ -1,6 +1,6 @@
 ﻿# TaskWrapper
 
-A C# task scheduling with interval or specific run times.
+A C# task scheduler with interval or specific run times.
 
 ```csharp
 TaskWrapper.Register(
