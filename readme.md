@@ -50,4 +50,4 @@ TaskWrapper.Register(
 	});
 ```
 
-This will run the function `RunMe` every 10 seconds, not at register, in a separate thread, and each time before it runs, the verify function will be called. This allows you to override the run and postpone it. This verify function postpones the run if the day-of-week is not friday.
+This will run the function `RunMe` every 10 seconds, not at register, in a separate thread, and each time before it runs, the verify function will be called. This allows you to override the run and postpone it. This verify function postpones the run by one hour if the day-of-week is not friday.
