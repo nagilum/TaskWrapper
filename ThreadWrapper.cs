@@ -19,10 +19,11 @@ public class TaskWrapper {
 	/// <param name="name">Name of the task to register.</param>
 	/// <param name="action">Function to run when the time is right.</param>
 	/// <param name="timeSpan">Interval between each run.</param>
+	/// <param name="dateTimes">A list of times (the date-part is ignored) when the function is to be runned.</param>
 	/// <param name="runInstantly">Run the function instantly.</param>
 	/// <param name="runThreaded">Run the function in a separate thread.</param>
 	/// <param name="verifyAtRuntime">Function which is called just before the action-function is to be called, allowing you to postpone it.</param>
-	public static void Register(string name, Action action, TimeSpan timeSpan, bool runInstantly = true, bool runThreaded = false, Func<TaskWrapperEntry, TimeSpan> verifyAtRuntime = null) {
+	public static void Register(string name, Action action, TimeSpan? timeSpan, List<DateTime> dateTimes, bool runInstantly = true, bool runThreaded = false, Func<TaskWrapperEntry, TimeSpan> verifyAtRuntime = null) {
 		if (action == null)
 			throw new Exception("Action is required.");
 
@@ -35,38 +36,6 @@ public class TaskWrapper {
 			Created = DateTime.Now,
 			Action = action,
 			TimeSpan = timeSpan,
-			VerifyAtRuntime = verifyAtRuntime
-		};
-
-		Entries.Add(entry);
-
-		if (runInstantly)
-			entry.Run();
-		else
-			entry.QueueNextRun(null);
-	}
-
-	/// <summary>
-	/// Queue up an action to run at a specifics time of day.
-	/// </summary>
-	/// <param name="name">Name of the task to register.</param>
-	/// <param name="action">Function to run when the time is right.</param>
-	/// <param name="dateTimes">A list of times (the date-part is ignored) when the function is to be runned.</param>
-	/// <param name="runInstantly">Run the function instantly.</param>
-	/// <param name="runThreaded">Run the function in a separate thread.</param>
-	/// <param name="verifyAtRuntime">Function which is called just before the action-function is to be called, allowing you to postpone it.</param>
-	public static void Register(string name, Action action, List<DateTime> dateTimes, bool runInstantly = true, bool runThreaded = false, Func<TaskWrapperEntry, TimeSpan> verifyAtRuntime = null) {
-		if (action == null)
-			throw new Exception("Action is required.");
-
-		if (Entries.SingleOrDefault(n => n.Name == name) != null)
-			throw new Exception("Task with same name already exists.");
-
-		var entry = new TaskWrapperEntry {
-			Name = name,
-			RunThreaded = runThreaded,
-			Created = DateTime.Now,
-			Action = action,
 			DateTimes = dateTimes,
 			VerifyAtRuntime = verifyAtRuntime
 		};
