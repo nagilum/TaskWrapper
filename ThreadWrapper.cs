@@ -23,7 +23,7 @@ public class TaskWrapper {
 	/// <param name="runInstantly">Run the function instantly.</param>
 	/// <param name="runThreaded">Run the function in a separate thread.</param>
 	/// <param name="verifyAtRuntime">Function which is called just before the action-function is to be called, allowing you to postpone it.</param>
-	public static void Register(string name, Action action, TimeSpan? timeSpan, List<DateTime> dateTimes, bool runInstantly = true, bool runThreaded = false, Func<TaskWrapperEntry, TimeSpan> verifyAtRuntime = null) {
+	public static void Register(string name, Action action, TimeSpan? timeSpan = null, List<DateTime> dateTimes = null, bool runInstantly = true, bool runThreaded = false, Func<TaskWrapperEntry, TimeSpan> verifyAtRuntime = null) {
 		if (action == null)
 			throw new Exception("Action is required.");
 
