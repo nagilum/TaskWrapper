@@ -1,3 +1,3 @@
 ﻿# TaskWrapper
 
-A C# task scheduler with interval or specific run times.
+A C# async task scheduler with interval or specific run times.
