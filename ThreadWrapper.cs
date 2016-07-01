@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 /// <summary>
-/// Task scheduling with interval or specific run times.
+/// Async task scheduling with interval or specific run times.
 /// </summary>
 public class TaskWrapper {
 	/// <summary>
@@ -27,6 +26,8 @@ public class TaskWrapper {
 		Exception
 	}
 
+	#region Helper Methods
+
 	/// <summary>
 	/// Add a new log entry.
 	/// </summary>
@@ -37,18 +38,6 @@ public class TaskWrapper {
 				message,
 				logType,
 				exception);
-	}
-
-	/// <summary>
-	/// Pause a task by name.
-	/// </summary>
-	public static void Pause(string name) {
-		var entry = Entries.SingleOrDefault(n => n.Name == name);
-
-		if (entry == null)
-			return;
-
-		entry.Pause();
 	}
 
 	/// <summary>
@@ -77,6 +66,21 @@ public class TaskWrapper {
 			entry.QueueNextRun(null);
 	}
 
+	#endregion
+	#region Entry Methods
+
+	/// <summary>
+	/// Pause a task by name.
+	/// </summary>
+	public static void Pause(string name) {
+		var entry = Entries.SingleOrDefault(n => n.Name == name);
+
+		if (entry == null)
+			return;
+
+		entry.Pause();
+	}
+
 	/// <summary>
 	/// Remove a task by name.
 	/// </summary>
@@ -86,7 +90,7 @@ public class TaskWrapper {
 		if (entry == null)
 			return;
 
-		entry.Stop();
+		entry.Pause();
 
 		Log(
 			entry,
@@ -112,31 +116,66 @@ public class TaskWrapper {
 		entry.Resume();
 	}
 
-	/// <summary>
-	/// Stop a task by name.
-	/// </summary>
-	public static void Stop(string name) {
-		var entry = Entries.SingleOrDefault(n => n.Name == name);
-
-		if (entry == null)
-			return;
-
-		entry.Stop();
-	}
+	#endregion
 }
 
 public class TaskWrapperEntry {
 	#region Properties
 
 	/// <summary>
-	/// Name of the registered task.
+	/// The function to call when the time is right.
 	/// </summary>
-	public string Name { get; set; }
+	public Func<TaskWrapperEntry, bool> Action { get; set; }
+
+	/// <summary>
+	/// When the function was registered.
+	/// </summary>
+	public DateTime Created { get; private set; }
+
+	/// <summary>
+	/// A list of times (the date-part is ignored) when the function is to be runned.
+	/// </summary>
+	public List<DateTime> DateTimes { get; set; }
 
 	/// <summary>
 	/// Whether or not the task should run.
 	/// </summary>
 	public bool Enabled { get; private set; }
+
+	/// <summary>
+	/// List of exceptions that has ocured during runs.
+	/// </summary>
+	public List<Exception> Exceptions { get; private set; }
+
+	/// <summary>
+	/// Interval between each run.
+	/// </summary>
+	public TimeSpan? Interval { get; set; }
+
+	/// <summary>
+	/// Whether or not the task is currently running.
+	/// </summary>
+	public bool IsRunning { get; private set; }
+
+	/// <summary>
+	/// The last time the run-function was called.
+	/// </summary>
+	public DateTime LastAttemptedRun { get; private set; }
+
+	/// <summary>
+	/// The last time the function was completed.
+	/// </summary>
+	public DateTime LastRunEnded { get; private set; }
+
+	/// <summary>
+	/// The last time the function was attempted to start.
+	/// </summary>
+	public DateTime LastRunStarted { get; private set; }
+
+	/// <summary>
+	/// Name of the registered task.
+	/// </summary>
+	public string Name { get; set; }
 
 	/// <summary>
 	/// Whether or not the task has been removed.
@@ -149,64 +188,9 @@ public class TaskWrapperEntry {
 	public bool RunAtRegister { get; set; }
 
 	/// <summary>
-	/// Whether or not to run the function in a separate thread.
-	/// </summary>
-	public bool RunThreaded { get; set; }
-
-	/// <summary>
-	/// Whether or not the task is currently running.
-	/// </summary>
-	public bool IsRunning { get; private set; }
-	
-	/// <summary>
-	/// When the function was registered.
-	/// </summary>
-	public DateTime Created { get; private set; }
-
-	/// <summary>
-	/// The last time the run-function was called.
-	/// </summary>
-	public DateTime LastAttemptedRun { get; private set; }
-
-	/// <summary>
-	/// The last time the function was attempted to start.
-	/// </summary>
-	public DateTime LastRunStarted { get; private set; }
-
-	/// <summary>
-	/// The last time the function was completed.
-	/// </summary>
-	public DateTime LastRunEnded { get; private set; }
-
-	/// <summary>
-	/// The function to call when the time is right.
-	/// </summary>
-	public Action<TaskWrapperEntry> Action { get; set; }
-
-	/// <summary>
-	/// Interval between each run.
-	/// </summary>
-	public TimeSpan? Interval { get; set; }
-
-	/// <summary>
-	/// A list of times (the date-part is ignored) when the function is to be runned.
-	/// </summary>
-	public List<DateTime> DateTimes { get; set; }
-
-	/// <summary>
 	/// Function which is called just before the action-function is to be called, allowing you to postpone it.
 	/// </summary>
 	public Func<TaskWrapperEntry, TimeSpan> VerifyAtRuntime { get; set; }
-
-	/// <summary>
-	/// Background thread to run the function in, if spesified.
-	/// </summary>
-	public Thread Thread { get; private set; }
-
-	/// <summary>
-	/// List of exceptions that has ocured during runs.
-	/// </summary>
-	public List<Exception> Exceptions { get; private set; }
 
 	#endregion
 	#region Constructors
@@ -221,7 +205,7 @@ public class TaskWrapperEntry {
 	}
 
 	#endregion
-	#region Instance Methods
+	#region Instance Handlers
 
 	/// <summary>
 	/// Pause the task.
@@ -234,6 +218,43 @@ public class TaskWrapperEntry {
 
 		this.Enabled = false;
 	}
+
+	/// <summary>
+	/// Remove the task from the list of entries.
+	/// </summary>
+	public void Remove() {
+		this.Pause();
+
+		TaskWrapper.Log(
+			this,
+			"Removing.",
+			TaskWrapper.TaskWrapperLogType.Info);
+
+		var entry = TaskWrapper.Entries.SingleOrDefault(n => n.Name == this.Name);
+
+		if (entry == null)
+			return;
+
+		TaskWrapper.Entries.Remove(entry);
+
+		this.Interval = null;
+		this.DateTimes = null;
+	}
+
+	/// <summary>
+	/// Resume the task.
+	/// </summary>
+	public void Resume() {
+		TaskWrapper.Log(
+			this,
+			"Resuming.",
+			TaskWrapper.TaskWrapperLogType.Info);
+
+		this.Enabled = true;
+	}
+
+	#endregion
+	#region Instance Methods
 
 	/// <summary>
 	/// Queue up the next run.
@@ -292,44 +313,9 @@ public class TaskWrapperEntry {
 	}
 
 	/// <summary>
-	/// Remove the task from the list of entries.
-	/// </summary>
-	public void Remove() {
-		this.Stop();
-
-		TaskWrapper.Log(
-			this,
-			"Removing.",
-			TaskWrapper.TaskWrapperLogType.Info);
-
-		var entry = TaskWrapper.Entries.SingleOrDefault(n => n.Name == this.Name);
-
-		if (entry == null)
-			return;
-
-		TaskWrapper.Entries.Remove(entry);
-
-		this.Thread = null;
-		this.Interval = null;
-		this.DateTimes = null;
-	}
-
-	/// <summary>
-	/// Resume the task.
-	/// </summary>
-	public void Resume() {
-		TaskWrapper.Log(
-			this,
-			"Resuming.",
-			TaskWrapper.TaskWrapperLogType.Info);
-
-		this.Enabled = true;
-	}
-
-	/// <summary>
 	/// Attempt to run the action now.
 	/// </summary>
-	public void Run() {
+	public async Task Run() {
 		if (this.Removed)
 			return;
 
@@ -372,66 +358,6 @@ public class TaskWrapperEntry {
 			}
 		}
 
-		if (this.RunThreaded) {
-			if (this.Thread != null &&
-			    this.Thread.IsAlive) {
-				TaskWrapper.Log(
-					this,
-					"Background thread is still running, so we will not start a new one just yet.",
-					TaskWrapper.TaskWrapperLogType.Warning);
-
-				return;
-			}
-
-			this.Thread = new Thread(() => {
-				try {
-					this.LastRunStarted = DateTime.Now;
-					this.IsRunning = true;
-
-					TaskWrapper.Log(
-						this,
-						"Running main function.",
-						TaskWrapper.TaskWrapperLogType.Info);
-
-					this.Action.Invoke(this);
-
-					this.IsRunning = false;
-					this.LastRunEnded = DateTime.Now;
-
-					var span = this.LastRunEnded - this.LastRunStarted;
-
-					TaskWrapper.Log(
-						this,
-						string.Format(
-							"Run completed successfully. Took {0} seconds.",
-							span.TotalSeconds),
-						TaskWrapper.TaskWrapperLogType.Info);
-				}
-				catch (Exception ex) {
-					TaskWrapper.Log(
-						this,
-						ex.Message,
-						TaskWrapper.TaskWrapperLogType.Exception,
-						ex);
-
-					this.Exceptions.Add(ex);
-					this.IsRunning = false;
-					this.LastRunEnded = DateTime.Now;
-				}
-
-				// Queue up the next run.
-				this.QueueNextRun(null);
-			});
-
-			TaskWrapper.Log(
-				this,
-				"Starting background thread.",
-				TaskWrapper.TaskWrapperLogType.Info);
-
-			this.Thread.Start();
-			return;
-		}
-
 		try {
 			this.LastRunStarted = DateTime.Now;
 			this.IsRunning = true;
@@ -441,7 +367,9 @@ public class TaskWrapperEntry {
 				"Running main function.",
 				TaskWrapper.TaskWrapperLogType.Info);
 
-			this.Action.Invoke(this);
+			var task = new Task<bool>(() => this.Action(this));
+			task.Start();
+			await task;
 
 			this.IsRunning = false;
 			this.LastRunEnded = DateTime.Now;
@@ -469,21 +397,6 @@ public class TaskWrapperEntry {
 
 		// Queue up the next run.
 		this.QueueNextRun(null);
-	}
-
-	/// <summary>
-	/// Stop the running thread.
-	/// </summary>
-	public void Stop() {
-		this.Enabled = false;
-
-		TaskWrapper.Log(
-			this,
-			"Stopping.",
-			TaskWrapper.TaskWrapperLogType.Info);
-
-		if (this.Thread != null)
-			this.Thread.Abort();
 	}
 
 	#endregion
